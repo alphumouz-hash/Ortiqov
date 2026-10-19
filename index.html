@@ -1,0 +1,1311 @@
+<!DOCTYPE html>
+<html lang="uz" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ORTIQOV ARCHITECTURE — Loyihalash, Chizma va 3D Vizualizatsiya</title>
+
+  <!-- Fonts: P22 Mackinac W01 Book + Inter + JetBrains Mono (Arxitektura o'lchamlari uchun) -->
+  <link href="https://db.onlinewebfonts.com/c/9d4d074c9335825a23cce178ee03b498?family=P22+Mackinac+W01+Book" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            serif: ['"P22 Mackinac W01 Book"', 'Georgia', 'serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            ink: '#191919',
+            stoneCard: '#F4F3F3',
+            stoneHover: '#EAEAEA',
+            blueprint: '#1E40AF',
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #FFFFFF;
+      color: #191919;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    /* Arxitektura millimetrli to'r naqshi */
+    .cad-grid-overlay {
+      background-size: 40px 40px;
+      background-image: 
+        linear-gradient(to right, rgba(25, 25, 25, 0.04) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(25, 25, 25, 0.04) 1px, transparent 1px);
+    }
+    /* Maxsus skrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #F4F3F3;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #191919;
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-white text-[#191919] overflow-x-hidden relative selection:bg-[#191919] selection:text-white">
+
+  <!-- ===================================================================== -->
+  <!-- FIXED SCROLL-DRIVEN 3D BUILDING CONSTRUCTION CANVAS (0% -> 100%)      -->
+  <!-- Sahifa pastlagan sari chizmadan tayyor 3D binogacha quriladi          -->
+  <!-- ===================================================================== -->
+  <div class="fixed inset-0 z-0 pointer-events-none overflow-hidden">
+    <!-- Boomerang Video Background (Hero qismida mayin harakat beradi) -->
+    <div id="boomerang-wrapper" class="absolute inset-0 scale-[1.15] origin-top overflow-hidden transition-opacity duration-500" style="opacity: 0.32;">
+      <video
+        id="boomerang-video"
+        src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260715_090628_7052d8a6-a094-4341-a4a2-ad58493a67a9.mp4"
+        muted
+        playsinline
+        preload="auto"
+        crossorigin="anonymous"
+        class="w-full h-full object-cover object-top"
+      ></video>
+      <canvas id="boomerang-canvas" class="w-full h-full object-cover object-top hidden"></canvas>
+    </div>
+
+    <!-- 3D Bino Qurilishi Kanvasi (Chizma -> Karkas -> Fasad -> 3D Render) -->
+    <canvas id="construction-canvas" class="absolute inset-0 w-full h-full"></canvas>
+
+    <!-- Arxitektura HUD ko'rsatkichlari (O'ng tomondagi balandlik va bosqich shkalasi) -->
+    <div class="hidden lg:flex fixed right-5 top-1/2 -translate-y-1/2 z-20 flex-col items-end gap-2 bg-white/80 backdrop-blur-md border border-gray-200 px-3 py-4 shadow-sm pointer-events-auto">
+      <div class="text-[10px] font-mono uppercase tracking-widest text-[#191919]/50">Loyiha bosqichi</div>
+      <div id="hud-stage-name" class="text-xs font-semibold text-[#191919]">01 / CHIZMA (CHERTOJ)</div>
+      <div class="w-32 h-1.5 bg-gray-200 overflow-hidden my-1">
+        <div id="hud-progress-bar" class="h-full bg-[#191919] transition-all duration-150" style="width: 5%;"></div>
+      </div>
+      <div class="flex items-center justify-between w-full text-[11px] font-mono text-[#191919]/70">
+        <span>BELGI:</span>
+        <span id="hud-elevation" class="font-semibold text-[#191919]">+0.000 m</span>
+      </div>
+      <div class="flex items-center justify-between w-full text-[10px] font-mono text-[#191919]/40 border-t border-gray-200 pt-1.5 mt-1">
+        <span>MASSHTAB:</span>
+        <span>M 1:100</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- FIXED NAVBAR (Boomerang uslubida shaffof va minimalist)               -->
+  <!-- ===================================================================== -->
+  <header id="navbar" class="fixed top-0 left-0 right-0 z-50 px-6 sm:px-10 md:px-14 py-4 sm:py-5 transition-all duration-300">
+    <div class="max-w-7xl mx-auto flex items-center justify-between">
+      
+      <!-- Chap zona: Logotip (Bosilganda foydalanuvchi o'z logotipini yuklashi mumkin) -->
+      <div class="flex items-center gap-2.5 group cursor-pointer" onclick="document.getElementById('logo-upload-input').click()" title="O'z logotipingizni yuklash uchun bosing">
+        <input type="file" id="logo-upload-input" accept="image/*" class="hidden" onchange="handleLogoUpload(event)" />
+        <img id="custom-logo-img" src="" alt="Logo" class="w-8 h-8 object-contain hidden rounded" />
+        <svg id="default-logo-svg" viewBox="0 0 256 256" fill="currentColor" class="w-6 h-6 text-[#191919] transition-transform duration-200 group-hover:scale-105">
+          <path d="M 144 256 L 27.598 256 L 144 139.598 Z M 256 207.5 L 200 256 L 200 56 L 0 56 L 48 0 L 256 0 Z M 0 204.402 L 0 112 L 92.402 112 Z" />
+        </svg>
+        <div class="flex flex-col">
+          <span class="font-semibold text-base tracking-tight text-[#191919] leading-none">ORTIQOV</span>
+          <span class="text-[9px] font-mono tracking-[0.22em] text-[#191919]/60 uppercase mt-0.5">Architecture & 3D</span>
+        </div>
+      </div>
+
+      <!-- O'rta zona: Navigatsiya havolalari -->
+      <nav class="hidden md:flex items-center gap-8 bg-white/75 backdrop-blur-md px-6 py-2 border border-gray-200/80 rounded-full shadow-sm">
+        <a href="#xizmatlar" class="text-sm text-[#191919]/70 hover:text-[#191919] transition-colors duration-200">Xizmatlar</a>
+        <a href="#portfolio" class="text-sm text-[#191919]/70 hover:text-[#191919] transition-colors duration-200">Qilingan ishlar</a>
+        <a href="#taqqoslash" class="text-sm text-[#191919]/70 hover:text-[#191919] transition-colors duration-200">Chizma va 3D</a>
+        <a href="#kalkulyator" class="text-sm text-[#191919]/70 hover:text-[#191919] transition-colors duration-200">Kalkulyator</a>
+        <a href="#taplink" class="text-sm text-[#191919]/70 hover:text-[#191919] transition-colors duration-200">Bog‘lanish</a>
+      </nav>
+
+      <!-- O'ng zona: Tezkor bog'lanish tugmasi -->
+      <div class="flex items-center gap-2.5">
+        <a
+          href="tel:+998772482211"
+          class="hidden sm:inline-flex items-center gap-2 px-4 py-2.5 bg-[#F4F3F3] text-[#191919] text-xs font-mono font-medium rounded-lg hover:bg-[#eaeaea] transition-colors duration-200 border border-gray-200"
+        >
+          <span>+998 77 248 22 11</span>
+        </a>
+        <a
+          href="https://t.me/Ortiqov_M"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="px-5 py-2.5 bg-[#191919] text-white text-sm font-medium rounded-lg hover:bg-[#191919]/90 transition-colors duration-200 flex items-center gap-2 shadow-sm"
+        >
+          <span>Loyiha buyurtma qilish</span>
+        </a>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- ===================================================================== -->
+  <!-- 1. HERO SECTION (Birinchi ekran = Boomerang uslubi + Arxitektura)      -->
+  <!-- ===================================================================== -->
+  <section class="relative flex flex-col items-center justify-between min-h-screen z-10 overflow-hidden">
+    
+    <!-- Yuqori Arxitektura Koordinata chizig'i -->
+    <div class="w-full max-w-5xl px-4 sm:px-6 pt-24 sm:pt-28 md:pt-32 flex flex-col items-center text-center">
+      
+      <div class="inline-flex items-center gap-2 px-3.5 py-1.5 bg-white/85 backdrop-blur-sm border border-gray-200 text-[11px] font-mono uppercase tracking-[0.18em] text-[#191919]/70 mb-5 shadow-sm">
+        <span class="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span>
+        <span>ARXITEKTURA • LOYIHALASH • 3D VIZUALIZATSIYA</span>
+      </div>
+
+      <!-- H1: P22 Mackinac Serif -->
+      <h1 class="font-serif text-4xl sm:text-5xl md:text-7xl lg:text-[82px] leading-[1.06] tracking-tighter text-[#191919] font-normal">
+        Chizmadan mukammal <br />
+        3D reallikkacha.
+      </h1>
+
+      <!-- Subcopy -->
+      <p class="max-w-sm sm:max-w-xl mt-5 sm:mt-6 md:mt-7 text-sm md:text-base text-[#191919]/75 leading-relaxed bg-white/60 backdrop-blur-xs px-4 py-2 rounded">
+        Turar va noturar bino-inshootlarning aniq me’moriy loyiha chizmalarini chizish, rasmiy qurilish hujjatlarini tayyorlash hamda fotorealistik 3D vizual ko‘rinishini yaratish xizmati.
+      </p>
+
+      <!-- Hero CTA tugmalari -->
+      <div class="mt-6 sm:mt-8 flex flex-wrap items-center justify-center gap-3">
+        <a
+          href="#portfolio"
+          class="px-6 sm:px-8 py-3 sm:py-3.5 bg-[#191919] text-white text-sm font-medium rounded-lg hover:bg-[#191919]/90 transition-colors duration-200 flex items-center gap-2 shadow-sm"
+        >
+          <span>Qilingan ishlarni ko‘rish</span>
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </a>
+        <a
+          href="#taplink"
+          class="px-6 sm:px-7 py-3 sm:py-3.5 bg-white/90 backdrop-blur-sm border border-gray-300 text-[#191919] text-sm font-medium rounded-lg hover:bg-[#F4F3F3] transition-colors duration-200 flex items-center gap-2"
+        >
+          <span>@Ortiqov_M bilan bog‘lanish</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- Pastki ma'lumot paneli (Boomerang Bottom Info Panel) -->
+    <div id="xizmatlar" class="w-full max-w-5xl px-4 sm:px-6 mt-12">
+      <div class="bg-white/92 backdrop-blur-md border border-gray-200 border-b-0 pt-8 sm:pt-12 md:pt-14 px-5 sm:px-8 md:px-12 pb-6 shadow-sm">
+        
+        <!-- Row 1: 2 ustun -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 md:gap-16 items-end">
+          <div>
+            <span class="text-[11px] font-mono uppercase tracking-[0.2em] text-[#191919]/50 font-medium block">
+              MEN NIMA ISH QILAMAN? / XIZMATLARIMIZ
+            </span>
+            <h2 class="mt-3 text-2xl sm:text-3xl md:text-4xl font-serif font-normal leading-tight tracking-tight text-[#191919]">
+              Har bir chiziqda aniqlik,<br class="hidden sm:inline" />
+              har bir binoda estetika.
+            </h2>
+          </div>
+          <div>
+            <p class="text-sm md:text-[15px] text-[#191919]/70 leading-relaxed">
+              Yangi uy, ko‘p qavatli bino, savdo majmuasi yoki ofis qurmoqchimisiz? Biz sizga 0 dan boshlab barcha me’moriy chizmalar (chertoj), konstruktiv yechimlar, smeta/ekspertiza hujjatlari va qurilishdan oldin binoni 360° ko‘rish imkonini beruvchi 3D vizualizatsiyani tayyorlab beramiz.
+            </p>
+          </div>
+        </div>
+
+        <!-- Ingichka ajratuvchi chiziq -->
+        <div class="mt-6 sm:mt-8 md:mt-10 h-px bg-gray-200 w-full"></div>
+
+        <!-- Row 2: 3 ta interaktiv yo'nalish qatori (Boomerang Feature Rows) -->
+        <div class="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
+          
+          <a href="#portfolio" onclick="filterPortfolio('loyiha')" class="group bg-[#F4F3F3] hover:bg-[#eaeaea] transition-all duration-200 cursor-pointer px-4 sm:px-5 py-3.5 sm:py-4 flex items-center justify-between">
+            <div class="text-sm">
+              <span class="font-mono text-[#191919]/40">01</span>
+              <span class="mx-2 text-[#191919]/30">/</span>
+              <span class="font-medium text-[#191919]">Loyiha va Hujjatlar</span>
+            </div>
+            <svg class="w-4 h-4 text-gray-400 group-hover:text-gray-700 group-hover:translate-x-0.5 transition-all duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </a>
+
+          <a href="#portfolio" onclick="filterPortfolio('3d')" class="group bg-[#F4F3F3] hover:bg-[#eaeaea] transition-all duration-200 cursor-pointer px-4 sm:px-5 py-3.5 sm:py-4 flex items-center justify-between">
+            <div class="text-sm">
+              <span class="font-mono text-[#191919]/40">02</span>
+              <span class="mx-2 text-[#191919]/30">/</span>
+              <span class="font-medium text-[#191919]">3D Vizualizatsiya</span>
+            </div>
+            <svg class="w-4 h-4 text-gray-400 group-hover:text-gray-700 group-hover:translate-x-0.5 transition-all duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </a>
+
+          <a href="#portfolio" onclick="filterPortfolio('noturar')" class="group bg-[#F4F3F3] hover:bg-[#eaeaea] transition-all duration-200 cursor-pointer px-4 sm:px-5 py-3.5 sm:py-4 flex items-center justify-between">
+            <div class="text-sm">
+              <span class="font-mono text-[#191919]/40">03</span>
+              <span class="mx-2 text-[#191919]/30">/</span>
+              <span class="font-medium text-[#191919]">Turar va Noturar Bino</span>
+            </div>
+            <svg class="w-4 h-4 text-gray-400 group-hover:text-gray-700 group-hover:translate-x-0.5 transition-all duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </a>
+
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================================== -->
+  <!-- 2. BATAFSIL XIZMATLAR VA ARXITEKTURA YO'NALISHLARI                     -->
+  <!-- ===================================================================== -->
+  <section class="relative z-10 py-16 sm:py-24 px-4 sm:px-6">
+    <div class="max-w-5xl mx-auto bg-white/90 backdrop-blur-md border border-gray-200 p-6 sm:p-10 md:p-12 shadow-sm">
+      
+      <div class="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-gray-200 pb-6">
+        <div>
+          <span class="text-[11px] font-mono uppercase tracking-[0.2em] text-[#191919]/50">ASOSIY FAOLIYAT YO‘NALISHLARI</span>
+          <h2 class="mt-2 text-3xl sm:text-4xl font-serif text-[#191919]">Nimalarni tayyorlab beraman?</h2>
+        </div>
+        <span class="text-xs font-mono text-[#191919]/50">SHNQ VA GOST STANDARTLARI ASOSIDA</span>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+        
+        <!-- Karta 1 -->
+        <div class="bg-[#F4F3F3] p-6 sm:p-8 border border-gray-200/80 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between text-xs font-mono text-[#191919]/50 mb-4">
+              <span>BO‘LIM: AR-01</span>
+              <span>AUTOCAD / REVIT</span>
+            </div>
+            <h3 class="text-xl font-serif text-[#191919]">1. Turar-joy binolari loyihasi va hujjatlari</h3>
+            <p class="mt-3 text-sm text-[#191919]/70 leading-relaxed">
+              Hovli uylar, zamonaviy kottedjlar, 2-3 qavatli villalar hamda ko‘p qavatli turar-joylarning ergonomik xonalar rejasi (planirovka), fasad qirqimlari, tom va poydevor chizmalarini tayyorlash.
+            </p>
+            <ul class="mt-4 space-y-1.5 text-xs font-mono text-[#191919]/80">
+              <li>✓ Eskiz loyiha (EP) va Arxitektura-rejalashtirish</li>
+              <li>✓ Ishchi loyiha chizmalari (AR / KJ)</li>
+              <li>✓ Qurilish ruxsatnomasi uchun rasmiy hujjatlar to‘plami</li>
+            </ul>
+          </div>
+          <div class="mt-6 pt-4 border-t border-gray-300/70 flex items-center justify-between text-xs font-medium">
+            <span>Tayyorlash muddati: 3–10 ish kuni</span>
+            <a href="https://t.me/Ortiqov_M" target="_blank" class="underline hover:text-blue-700">Maslahat olish →</a>
+          </div>
+        </div>
+
+        <!-- Karta 2 -->
+        <div class="bg-[#F4F3F3] p-6 sm:p-8 border border-gray-200/80 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between text-xs font-mono text-[#191919]/50 mb-4">
+              <span>BO‘LIM: AR-02</span>
+              <span>TIJORAT OBYEKTLARI</span>
+            </div>
+            <h3 class="text-xl font-serif text-[#191919]">2. Noturar bino va inshootlar loyihasi</h3>
+            <p class="mt-3 text-sm text-[#191919]/70 leading-relaxed">
+              Savdo do‘konlari, supermarketlar, biznes markazlar, o‘quv va tibbiyot maskanlari, ma’muriy binolar, omborxona hamda ishlab chiqarish binolarining barcha me’moriy-muhandislik chizmalari.
+            </p>
+            <ul class="mt-4 space-y-1.5 text-xs font-mono text-[#191919]/80">
+              <li>✓ Bosh reja (Genplan) va hududni obodonlashtirish</li>
+              <li>✓ Konstruktiv yechimlar va evakuatsiya chizmalari</li>
+              <li>✓ Ekspertiza va kadastr uchun to‘liq loyiha albomi</li>
+            </ul>
+          </div>
+          <div class="mt-6 pt-4 border-t border-gray-300/70 flex items-center justify-between text-xs font-medium">
+            <span>Tayyorlash muddati: Hajmga qarab</span>
+            <a href="https://t.me/Ortiqov_M" target="_blank" class="underline hover:text-blue-700">Maslahat olish →</a>
+          </div>
+        </div>
+
+        <!-- Karta 3 -->
+        <div class="bg-[#F4F3F3] p-6 sm:p-8 border border-gray-200/80 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between text-xs font-mono text-[#191919]/50 mb-4">
+              <span>BO‘LIM: 3D-03</span>
+              <span>3DS MAX / CORONA RENDER</span>
+            </div>
+            <h3 class="text-xl font-serif text-[#191919]">3. Eksteryer va Interyer 3D Vizualizatsiya</h3>
+            <p class="mt-3 text-sm text-[#191919]/70 leading-relaxed">
+              Bino hali qurilmasidan oldin uning kunduzgi va tungi yoritilishdagi haqiqiy fotorealistik ko‘rinishini yaratamiz. Fasad materiallari (travertin, klinker, alyukobond, vitraj) aniq teksturasi bilan ko‘rsatiladi.
+            </p>
+            <ul class="mt-4 space-y-1.5 text-xs font-mono text-[#191919]/80">
+              <li>✓ Yuqori aniqlikdagi (4K) kunduzgi va tungi 3D renderlar</li>
+              <li>✓ Fasad materiallari va ranglar uyg‘unligi tanlovi</li>
+              <li>✓ Landshaft, hovli va atrof-muhit 3D yechimi</li>
+            </ul>
+          </div>
+          <div class="mt-6 pt-4 border-t border-gray-300/70 flex items-center justify-between text-xs font-medium">
+            <span>Yuqori fotorealizm kafolati</span>
+            <a href="https://t.me/Ortiqov_M" target="_blank" class="underline hover:text-blue-700">Namunalar →</a>
+          </div>
+        </div>
+
+        <!-- Karta 4 -->
+        <div class="bg-[#F4F3F3] p-6 sm:p-8 border border-gray-200/80 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between text-xs font-mono text-[#191919]/50 mb-4">
+              <span>BO‘LIM: DOC-04</span>
+              <span>3D MOTION & TAQDIMOT</span>
+            </div>
+            <h3 class="text-xl font-serif text-[#191919]">4. 3D Video-Obzor va Mualliflik Nazorati</h3>
+            <p class="mt-3 text-sm text-[#191919]/70 leading-relaxed">
+              Investorlar va mijozlar uchun binoning kinematografik 3D video aylanmasini (walkthrough / motion video) tayyorlash hamda qurilish jarayonida loyiha chizmalaridan chetga chiqmaslikni nazorat qilish.
+            </p>
+            <ul class="mt-4 space-y-1.5 text-xs font-mono text-[#191919]/80">
+              <li>✓ Qurilish jarayonida ustalar uchun tushunarli 3D qirqimlar</li>
+              <li>✓ Materiallar sarfi (spetsifikatsiya) jadvali</li>
+              <li>✓ Doimiy onlayn va joyiga chiqib maslahat berish</li>
+            </ul>
+          </div>
+          <div class="mt-6 pt-4 border-t border-gray-300/70 flex items-center justify-between text-xs font-medium">
+            <span>0 dan kalit topshirilgungacha</span>
+            <a href="tel:+998772482211" class="underline hover:text-blue-700">Qo‘ng‘iroq qilish →</a>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================================== -->
+  <!-- 3. QILINGAN ISHLAR (PORTFOLIO) + DOIMIY LOYIHA QO'SHISH TIZIMI          -->
+  <!-- ===================================================================== -->
+  <section id="portfolio" class="relative z-10 py-16 sm:py-24 px-4 sm:px-6">
+    <div class="max-w-5xl mx-auto bg-white/92 backdrop-blur-md border border-gray-200 p-6 sm:p-10 md:p-12 shadow-sm">
+      
+      <!-- Sarlavha va "+ Loyiha qo'shish" tugmasi -->
+      <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-gray-200 pb-6">
+        <div>
+          <span class="text-[11px] font-mono uppercase tracking-[0.2em] text-[#191919]/50">PORTFOLIO / ARXIV</span>
+          <h2 class="mt-2 text-3xl sm:text-4xl font-serif text-[#191919]">Qilingan ishlar</h2>
+          <p class="mt-1 text-sm text-[#191919]/65">Turar va noturar binolar loyihalari, ishchi chizmalar hamda 3D vizualizatsiyalar.</p>
+        </div>
+
+        <button
+          onclick="toggleAddProjectModal(true)"
+          class="px-4 py-2.5 bg-[#191919] text-white text-xs font-mono uppercase tracking-wider rounded-lg hover:bg-[#191919]/90 transition-colors flex items-center gap-2 self-start sm:self-auto"
+        >
+          <span>+ Yangi loyiha qo‘shish</span>
+        </button>
+      </div>
+
+      <!-- Filter tugmalari -->
+      <div class="flex flex-wrap items-center gap-2 mt-6">
+        <button onclick="filterPortfolio('all')" data-filter="all" class="portfolio-filter-btn px-4 py-2 text-xs font-mono uppercase tracking-wider bg-[#191919] text-white transition-all">
+          Barchasi
+        </button>
+        <button onclick="filterPortfolio('turar')" data-filter="turar" class="portfolio-filter-btn px-4 py-2 text-xs font-mono uppercase tracking-wider bg-[#F4F3F3] text-[#191919] hover:bg-[#eaeaea] transition-all">
+          Turar-joy binolari
+        </button>
+        <button onclick="filterPortfolio('noturar')" data-filter="noturar" class="portfolio-filter-btn px-4 py-2 text-xs font-mono uppercase tracking-wider bg-[#F4F3F3] text-[#191919] hover:bg-[#eaeaea] transition-all">
+          Noturar binolar
+        </button>
+        <button onclick="filterPortfolio('3d')" data-filter="3d" class="portfolio-filter-btn px-4 py-2 text-xs font-mono uppercase tracking-wider bg-[#F4F3F3] text-[#191919] hover:bg-[#eaeaea] transition-all">
+          3D Vizualizatsiya
+        </button>
+        <button onclick="filterPortfolio('loyiha')" data-filter="loyiha" class="portfolio-filter-btn px-4 py-2 text-xs font-mono uppercase tracking-wider bg-[#F4F3F3] text-[#191919] hover:bg-[#eaeaea] transition-all">
+          Chizma va Hujjatlar
+        </button>
+      </div>
+
+      <!-- Portfolio Grid (JavaScript orqali dinamik yuklanadi va yangi loyiha qo'shiladi) -->
+      <div id="portfolio-grid" class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8"></div>
+
+    </div>
+  </section>
+
+  <!-- ===================================================================== -->
+  <!-- 4. INTERAKTIV TAQQOSLASH: CHERTOJ CHIZMASI VS 3D VIZUALIZATSIYA        -->
+  <!-- ===================================================================== -->
+  <section id="taqqoslash" class="relative z-10 py-16 sm:py-24 px-4 sm:px-6">
+    <div class="max-w-5xl mx-auto bg-white/92 backdrop-blur-md border border-gray-200 p-6 sm:p-10 md:p-12 shadow-sm">
+      
+      <div class="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
+        <div>
+          <span class="text-[11px] font-mono uppercase tracking-[0.2em] text-[#191919]/50">INTERAKTIV KO‘RISH</span>
+          <h2 class="mt-2 text-3xl sm:text-4xl font-serif text-[#191919]">Chizmadan — tayyor 3D ko‘rinishgacha</h2>
+        </div>
+        <p class="text-xs font-mono text-[#191919]/60">Slayderni chapga va o‘ngga surib farqni ko‘ring ↔</p>
+      </div>
+
+      <!-- Before / After Container -->
+      <div class="relative w-full h-[340px] sm:h-[440px] overflow-hidden border border-gray-300 select-none bg-[#0F172A]">
+        
+        <!-- O'ng tomon (Tayyor 3D Vizualizatsiya) -->
+        <img
+          src="https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=1400&q=85"
+          alt="3D Render"
+          class="absolute inset-0 w-full h-full object-cover"
+        />
+        <div class="absolute top-4 right-4 bg-[#191919]/85 text-white text-xs font-mono px-3 py-1.5 backdrop-blur-sm">
+          02 / TAYYOR 3D VIZUALIZATSIYA (CORONA RENDER)
+        </div>
+
+        <!-- Chap tomon (2D Chertoj / Blueprint effekti) -->
+        <div id="before-layer" class="absolute inset-y-0 left-0 overflow-hidden" style="width: 50%;">
+          <div class="relative w-full h-full bg-[#0A192F]">
+            <img
+              src="https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=1400&q=85"
+              alt="CAD Blueprint"
+              class="w-full h-full object-cover filter invert contrast-200 grayscale mix-blend-screen opacity-75"
+              style="width: 100vw; max-width: 64rem;"
+            />
+            <!-- Chizma o'lcham chiziqlari ustki qatlami -->
+            <div class="absolute inset-0 cad-grid-overlay border-r-2 border-white flex flex-col justify-between p-6 text-blue-200 font-mono text-xs">
+              <div class="bg-[#0A192F]/90 border border-blue-400/40 px-3 py-1.5 w-fit">
+                01 / ISHCHI LOYIHA CHIZMASI (CHERTOJ M 1:100)
+              </div>
+              <div class="space-y-1 bg-[#0A192F]/80 p-3 border border-blue-400/30 w-fit">
+                <div>O‘QLAR: A - G / 1 - 6</div>
+                <div>BALANDLIK BELGISI: +8.400 m</div>
+                <div>UMUMIY MAYDON: 420.0 m²</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Range Input boshqaruvchisi -->
+        <input
+          type="range"
+          min="5"
+          max="95"
+          value="50"
+          oninput="document.getElementById('before-layer').style.width = this.value + '%'; document.getElementById('slider-handle').style.left = this.value + '%';"
+          class="absolute inset-0 w-full h-full opacity-0 cursor-ew-resize z-30"
+        />
+
+        <!-- O'rtadagi suriladigan chiziq -->
+        <div id="slider-handle" class="absolute top-0 bottom-0 w-0.5 bg-white z-20 pointer-events-none" style="left: 50%;">
+          <div class="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-10 h-10 rounded-full bg-[#191919] text-white border-2 border-white flex items-center justify-center shadow-lg font-mono text-xs">
+            ↔
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ===================================================================== -->
+  <!-- 5. INTERAKTIV LOYIHA KALKULYATORI                                     -->
+  <!-- ===================================================================== -->
+  <section id="kalkulyator" class="relative z-10 py-16 sm:py-24 px-4 sm:px-6">
+    <div class="max-w-5xl mx-auto bg-white/92 backdrop-blur-md border border-gray-200 p-6 sm:p-10 md:p-12 shadow-sm">
+      
+      <span class="text-[11px] font-mono uppercase tracking-[0.2em] text-[#191919]/50">LOYIHA PARAMETRLARI</span>
+      <h2 class="mt-2 text-3xl sm:text-4xl font-serif text-[#191919]">Loyiha hajmini hisoblash va buyurtma</h2>
+      <p class="mt-2 text-sm text-[#191919]/70">Bino turi va maydonini tanlang — tayyor ma’lumotni bir bosishda Telegram orqali yuboring.</p>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+        
+        <!-- Parametrlar -->
+        <div class="md:col-span-2 space-y-5 bg-[#F4F3F3] p-6 border border-gray-200">
+          <div>
+            <label class="block text-xs font-mono uppercase text-[#191919]/70 mb-2">1. Bino turini tanlang:</label>
+            <select id="calc-type" onchange="updateCalculator()" class="w-full px-4 py-3 bg-white border border-gray-300 text-sm focus:outline-none focus:border-[#191919]">
+              <option value="Turar-joy binosi (Uy / Kottedj / Villa)">Turar-joy binosi (Uy / Kottedj / Villa)</option>
+              <option value="Noturar bino (Savdo markazi / Do'kon / Ofis)">Noturar bino (Savdo markazi / Do‘kon / Ofis)</option>
+              <option value="Ko'p qavatli turar-joy majmuasi">Ko‘p qavatli turar-joy majmuasi</option>
+              <option value="Ishlab chiqarish yoki ma'muriy bino">Ishlab chiqarish yoki ma’muriy bino</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-mono uppercase text-[#191919]/70 mb-2">2. Kerakli xizmat turi:</label>
+            <select id="calc-service" onchange="updateCalculator()" class="w-full px-4 py-3 bg-white border border-gray-300 text-sm focus:outline-none focus:border-[#191919]">
+              <option value="To'liq paket (Loyiha chizmasi + Hujjatlar + 3D Vizualizatsiya)">To‘liq paket (Loyiha chizmasi + Hujjatlar + 3D Vizualizatsiya)</option>
+              <option value="Faqat Arxitektura chizmalari va rasmiy hujjatlar">Faqat Arxitektura chizmalari va rasmiy hujjatlar</option>
+              <option value="Faqat 3D Vizualizatsiya (Eksteryer / Interyer)">Faqat 3D Vizualizatsiya (Eksteryer / Interyer)</option>
+            </select>
+          </div>
+
+          <div>
+            <div class="flex justify-between text-xs font-mono uppercase text-[#191919]/70 mb-2">
+              <span>3. Taxminiy bino maydoni (m²):</span>
+              <span id="calc-area-display" class="font-bold text-[#191919]">250 m²</span>
+            </div>
+            <input
+              id="calc-area"
+              type="range"
+              min="50"
+              max="2500"
+              step="25"
+              value="250"
+              oninput="updateCalculator()"
+              class="w-full accent-[#191919] cursor-pointer"
+            />
+            <div class="flex justify-between text-[10px] font-mono text-[#191919]/40 mt-1">
+              <span>50 m²</span>
+              <span>1000 m²</span>
+              <span>2500+ m²</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Xulosa va Telegramga yuborish -->
+        <div class="bg-[#191919] text-white p-6 flex flex-col justify-between">
+          <div>
+            <span class="text-[10px] font-mono uppercase tracking-widest text-white/50">LOYIHA XULOSASI</span>
+            <h3 id="calc-summary-title" class="text-lg font-serif mt-2">Turar-joy binosi (250 m²)</h3>
+            <div class="mt-4 space-y-2 text-xs font-mono text-white/80 border-t border-white/15 pt-4">
+              <div class="flex justify-between">
+                <span class="text-white/50">Qavatlilik:</span>
+                <span>1–4+ qavat</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-white/50">Taxminiy muddat:</span>
+                <span id="calc-days">5–9 ish kuni</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-white/50">Formatlar:</span>
+                <span>DWG, PDF, JPG 4K</span>
+              </div>
+            </div>
+          </div>
+
+          <a
+            id="calc-telegram-link"
+            href="https://t.me/Ortiqov_M"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="mt-6 w-full py-3.5 px-4 bg-white text-[#191919] text-center text-xs font-mono uppercase tracking-wider font-semibold hover:bg-gray-200 transition-colors block"
+          >
+            Telegram orqali hisoblatish →
+          </a>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================================== -->
+  <!-- 6. TAPLINK USLUBIDAGI BOG'LANISH MARKAZI                              -->
+  <!-- (+998 77 248 22 11 va @Ortiqov_M - ustiga bosilganda to'g'ridan-to'g'ri o'tadi) -->
+  <!-- ===================================================================== -->
+  <section id="taplink" class="relative z-10 py-16 sm:py-24 px-4 sm:px-6 pb-32">
+    <div class="max-w-2xl mx-auto bg-white/95 backdrop-blur-md border border-gray-200 p-6 sm:p-10 md:p-12 shadow-md">
+      
+      <!-- Taplink Profil Bosh qismi -->
+      <div class="flex flex-col items-center text-center">
+        <div class="w-20 h-20 rounded-full bg-[#191919] text-white flex items-center justify-center shadow-md mb-4 border-4 border-[#F4F3F3]">
+          <svg viewBox="0 0 256 256" fill="currentColor" class="w-9 h-9">
+            <path d="M 144 256 L 27.598 256 L 144 139.598 Z M 256 207.5 L 200 256 L 200 56 L 0 56 L 48 0 L 256 0 Z M 0 204.402 L 0 112 L 92.402 112 Z" />
+          </svg>
+        </div>
+
+        <span class="text-[11px] font-mono uppercase tracking-[0.22em] text-[#191919]/50">ARXITEKTOR & 3D VIZUALIZATOR</span>
+        <h2 class="mt-1 text-3xl sm:text-4xl font-serif text-[#191919]">Biz bilan bog‘lanish</h2>
+        <p class="mt-2 text-sm text-[#191919]/70 max-w-md">
+          Loyiha buyurtma qilish, maslahat olish yoki narxlarni bilish uchun quyidagi tugmalardan birining ustiga bosing — to‘g‘ridan-to‘g‘ri qo‘ng‘iroq yoki Telegram muloqotga o‘tasiz:
+        </p>
+      </div>
+
+      <!-- TAPLINK TUGMALARI RO'YXATI -->
+      <div class="mt-8 space-y-3.5">
+        
+        <!-- 1. To'g'ridan-to'g'ri Qo'ng'iroq qilish (+998 77 248 22 11) -->
+        <a
+          href="tel:+998772482211"
+          class="group w-full bg-[#191919] text-white hover:bg-[#191919]/90 transition-all duration-200 p-4 sm:p-5 rounded-xl flex items-center justify-between shadow-sm"
+        >
+          <div class="flex items-center gap-4">
+            <div class="w-12 h-12 rounded-lg bg-white/10 flex items-center justify-center text-white shrink-0">
+              <!-- Phone Icon -->
+              <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+              </svg>
+            </div>
+            <div class="text-left">
+              <div class="text-[11px] font-mono uppercase tracking-wider text-white/60">TO‘G‘RIDAN-TO‘G‘RI QO‘NG‘IROQ QILISH</div>
+              <div class="text-lg sm:text-xl font-semibold tracking-tight mt-0.5">+998 77 248 22 11</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 text-xs font-mono uppercase bg-white/15 px-3 py-1.5 rounded-lg group-hover:translate-x-1 transition-transform">
+            <span>Qo‘ng‘iroq</span>
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </div>
+        </a>
+
+        <!-- 2. To'g'ridan-to'g'ri Telegram profilga o'tish (@Ortiqov_M) -->
+        <a
+          href="https://t.me/Ortiqov_M"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="group w-full bg-[#0088CC] text-white hover:bg-[#0077B5] transition-all duration-200 p-4 sm:p-5 rounded-xl flex items-center justify-between shadow-sm"
+        >
+          <div class="flex items-center gap-4">
+            <div class="w-12 h-12 rounded-lg bg-white/15 flex items-center justify-center text-white shrink-0">
+              <!-- Telegram Icon -->
+              <svg class="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+              </svg>
+            </div>
+            <div class="text-left">
+              <div class="text-[11px] font-mono uppercase tracking-wider text-white/80">TELEGRAM ORQALI YOZISH</div>
+              <div class="text-lg sm:text-xl font-semibold tracking-tight mt-0.5">@Ortiqov_M</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 text-xs font-mono uppercase bg-white/20 px-3 py-1.5 rounded-lg group-hover:translate-x-1 transition-transform">
+            <span>Telegram</span>
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </div>
+        </a>
+
+        <!-- 3. Portfolio katalogiga o'tish -->
+        <a
+          href="#portfolio"
+          class="group w-full bg-[#F4F3F3] hover:bg-[#eaeaea] text-[#191919] transition-all duration-200 p-4 rounded-xl flex items-center justify-between border border-gray-200"
+        >
+          <div class="flex items-center gap-3.5">
+            <span class="font-mono text-xs text-[#191919]/40">03</span>
+            <span class="font-medium text-sm">Barcha qilingan loyihalar va 3D ishlar katalogi</span>
+          </div>
+          <svg class="w-4 h-4 text-gray-500 group-hover:translate-x-1 transition-transform" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </a>
+
+      </div>
+
+      <div class="mt-8 pt-6 border-t border-gray-200 text-center text-xs font-mono text-[#191919]/50">
+        © 2026 ORTIQOV ARCHITECTURE. Turar va noturar binolar loyihasi hamda 3D vizualizatsiya.
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================================== -->
+  <!-- PASTKI QALQIB TURUVCHI TEZKOR TAPLINK PANELI (Mobil va Desktop uchun) -->
+  <!-- ===================================================================== -->
+  <div class="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 w-[92%] max-w-md bg-[#191919]/95 backdrop-blur-md text-white p-2 rounded-2xl shadow-xl border border-white/15 flex items-center justify-between gap-2">
+    <a
+      href="tel:+998772482211"
+      class="flex-1 py-2.5 px-3 rounded-xl bg-white/10 hover:bg-white/20 transition-colors flex items-center justify-center gap-2 text-xs font-medium"
+    >
+      <svg class="w-4 h-4 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+      <span>+998 77 248 22 11</span>
+    </a>
+    <a
+      href="https://t.me/Ortiqov_M"
+      target="_blank"
+      rel="noopener noreferrer"
+      class="flex-1 py-2.5 px-3 rounded-xl bg-[#0088CC] hover:bg-[#0077B5] transition-colors flex items-center justify-center gap-2 text-xs font-medium"
+    >
+      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+      <span>@Ortiqov_M</span>
+    </a>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- MODAL: YANGI LOYIHA QO'SHISH (Doimiy ishlarni joylab borish uchun)     -->
+  <!-- ===================================================================== -->
+  <div id="add-project-modal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs hidden items-center justify-center p-4">
+    <div class="bg-white border border-gray-200 max-w-lg w-full p-6 sm:p-8 shadow-xl">
+      <div class="flex items-center justify-between border-b border-gray-200 pb-4">
+        <h3 class="text-2xl font-serif text-[#191919]">Yangi loyiha qo‘shish</h3>
+        <button onclick="toggleAddProjectModal(false)" class="text-sm font-mono text-gray-500 hover:text-black">✕ YOPISH</button>
+      </div>
+
+      <form onsubmit="handleAddProject(event)" class="mt-5 space-y-4">
+        <div>
+          <label class="block text-xs font-mono uppercase text-gray-600 mb-1">Loyiha nomi *</label>
+          <input id="proj-title" type="text" required placeholder="Masalan: 3 qavatli Savdo va Maishiy xizmat binosi" class="w-full px-3.5 py-2.5 border border-gray-300 text-sm" />
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-mono uppercase text-gray-600 mb-1">Yo‘nalish *</label>
+            <select id="proj-category" class="w-full px-3.5 py-2.5 border border-gray-300 text-sm">
+              <option value="turar">Turar-joy binosi</option>
+              <option value="noturar">Noturar bino</option>
+              <option value="3d">3D Vizualizatsiya</option>
+              <option value="loyiha">Chizma va Hujjatlar</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-mono uppercase text-gray-600 mb-1">Maydoni (m²) *</label>
+            <input id="proj-area" type="text" required placeholder="Masalan: 480 m²" class="w-full px-3.5 py-2.5 border border-gray-300 text-sm" />
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-mono uppercase text-gray-600 mb-1">Rasm yuklash yoki URL manzili</label>
+          <input id="proj-file" type="file" accept="image/*" class="w-full text-xs mb-2" />
+          <input id="proj-img" type="url" placeholder="Yoki rasm havolasi (https://...)" class="w-full px-3.5 py-2 border border-gray-300 text-sm" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-mono uppercase text-gray-600 mb-1">Qisqacha tavsif (Chizma, 3D, hujjatlar haqida) *</label>
+          <textarea id="proj-desc" rows="3" required placeholder="Arxitektura-rejalashtirish chizmasi, ishchi loyiha hujjatlari va 3D eksteryer vizualizatsiyasi tayyorlandi." class="w-full px-3.5 py-2.5 border border-gray-300 text-sm"></textarea>
+        </div>
+
+        <div class="pt-2 flex justify-end gap-2">
+          <button type="button" onclick="toggleAddProjectModal(false)" class="px-4 py-2.5 bg-gray-100 text-xs font-mono uppercase">Bekor qilish</button>
+          <button type="submit" class="px-6 py-2.5 bg-[#191919] text-white text-xs font-mono uppercase">Saqlash va joylash</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- JAVASCRIPT:                                                           -->
+  <!-- 1. Boomerang Video Ping-Pong Canvas                                   -->
+  <!-- 2. Scroll-Driven 0% -> 100% 3D Bino Qurilishi (Chizmadan Bitishgacha) -->
+  <!-- 3. Portfolio boshqaruvi va Kalkulyator                                -->
+  <!-- ===================================================================== -->
+  <script>
+    /* ---------------------------------------------------------------------
+     * 1. BOOMERANG VIDEO BACKGROUND (Capture -> Ping-Pong 30fps on Canvas)
+     * --------------------------------------------------------------------- */
+    (function initBoomerangVideo() {
+      const video = document.getElementById('boomerang-video');
+      const canvas = document.getElementById('boomerang-canvas');
+      if (!video || !canvas) return;
+
+      const frames = [];
+      let lastTime = -1;
+      let capturing = true;
+
+      const captureFrame = () => {
+        if (!capturing) return;
+        if (video.readyState >= 2 && video.currentTime !== lastTime && video.videoWidth > 0) {
+          lastTime = video.currentTime;
+          const scale = Math.min(1, 960 / video.videoWidth);
+          const w = Math.round(video.videoWidth * scale);
+          const h = Math.round(video.videoHeight * scale);
+
+          const off = document.createElement('canvas');
+          off.width = w;
+          off.height = h;
+          const ctx = off.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(video, 0, 0, w, h);
+            frames.push(off);
+          }
+        }
+        if (capturing) {
+          if ('requestVideoFrameCallback' in video) {
+            video.requestVideoFrameCallback(captureFrame);
+          } else {
+            requestAnimationFrame(captureFrame);
+          }
+        }
+      };
+
+      video.addEventListener('loadeddata', () => {
+        video.play().catch(() => {});
+        if ('requestVideoFrameCallback' in video) {
+          video.requestVideoFrameCallback(captureFrame);
+        } else {
+          requestAnimationFrame(captureFrame);
+        }
+      });
+
+      video.addEventListener('ended', () => {
+        capturing = false;
+        if (frames.length < 2) {
+          video.loop = true;
+          video.play().catch(() => {});
+          return;
+        }
+        video.style.display = 'none';
+        canvas.classList.remove('hidden');
+        canvas.width = frames[0].width;
+        canvas.height = frames[0].height;
+        const ctx = canvas.getContext('2d');
+
+        let idx = frames.length - 1;
+        let dir = -1;
+        setInterval(() => {
+          ctx.drawImage(frames[idx], 0, 0);
+          idx += dir;
+          if (idx >= frames.length - 1) {
+            idx = frames.length - 1;
+            dir = -1;
+          } else if (idx <= 0) {
+            idx = 0;
+            dir = 1;
+          }
+        }, 1000 / 30);
+      });
+    })();
+
+    /* ---------------------------------------------------------------------
+     * 2. SAHIFA PASTLASHGAN SARI ORQA FONDA BINONING 0 DAN QURILISHI
+     *    (0% Chizma -> 35% 3D Karkas -> 70% Fasad -> 100% Tayyor 3D Bino)
+     * --------------------------------------------------------------------- */
+    (function initBuildingConstructionCanvas() {
+      const canvas = document.getElementById('construction-canvas');
+      const ctx = canvas.getContext('2d');
+      const stageLabel = document.getElementById('hud-stage-name');
+      const progressBar = document.getElementById('hud-progress-bar');
+      const elevationLabel = document.getElementById('hud-elevation');
+
+      let width = (canvas.width = window.innerWidth);
+      let height = (canvas.height = window.innerHeight);
+
+      window.addEventListener('resize', () => {
+        width = canvas.width = window.innerWidth;
+        height = canvas.height = window.innerHeight;
+        drawConstructionScene();
+      });
+
+      // Izometrik 3D nuqtani 2D ekran koordinatasiga o'tkazish funksiyasi
+      function isoProject(x, y, z, cx, cy, scale) {
+        const angle = Math.PI / 6; // 30 gradus arxitektura aksonometriyasi
+        const screenX = cx + (x - y) * Math.cos(angle) * scale;
+        const screenY = cy + (x + y) * Math.sin(angle) * scale - z * scale;
+        return { x: screenX, y: screenY };
+      }
+
+      // 3D parallelepiped (ustun, plita, fasad bloki) chizish yordamchisi
+      function drawIsoBox(x, y, z, w, d, h, cx, cy, scale, strokeColor, fillTop, fillLeft, fillRight, lineWidth = 1) {
+        const p000 = isoProject(x, y, z, cx, cy, scale);
+        const p100 = isoProject(x + w, y, z, cx, cy, scale);
+        const p110 = isoProject(x + w, y + d, z, cx, cy, scale);
+        const p010 = isoProject(x, y + d, z, cx, cy, scale);
+
+        const p001 = isoProject(x, y, z + h, cx, cy, scale);
+        const p101 = isoProject(x + w, y, z + h, cx, cy, scale);
+        const p111 = isoProject(x + w, y + d, z + h, cx, cy, scale);
+        const p011 = isoProject(x, y + d, z + h, cx, cy, scale);
+
+        ctx.lineWidth = lineWidth;
+        ctx.strokeStyle = strokeColor;
+
+        // Chap yuza
+        if (fillLeft) {
+          ctx.fillStyle = fillLeft;
+          ctx.beginPath();
+          ctx.moveTo(p010.x, p010.y);
+          ctx.lineTo(p110.x, p110.y);
+          ctx.lineTo(p111.x, p111.y);
+          ctx.lineTo(p011.x, p011.y);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        }
+
+        // O'ng yuza
+        if (fillRight) {
+          ctx.fillStyle = fillRight;
+          ctx.beginPath();
+          ctx.moveTo(p100.x, p100.y);
+          ctx.lineTo(p110.x, p110.y);
+          ctx.lineTo(p111.x, p111.y);
+          ctx.lineTo(p101.x, p101.y);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        }
+
+        // Yuqori yuza (Plita / Tom)
+        if (fillTop) {
+          ctx.fillStyle = fillTop;
+          ctx.beginPath();
+          ctx.moveTo(p001.x, p001.y);
+          ctx.lineTo(p101.x, p101.y);
+          ctx.lineTo(p111.x, p111.y);
+          ctx.lineTo(p011.x, p011.y);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        }
+
+        // Agar faqat chizma (wireframe) bo'lsa
+        if (!fillTop && !fillLeft && !fillRight) {
+          ctx.beginPath();
+          ctx.moveTo(p000.x, p000.y); ctx.lineTo(p100.x, p100.y); ctx.lineTo(p110.x, p110.y); ctx.lineTo(p010.x, p010.y); ctx.closePath();
+          ctx.moveTo(p001.x, p001.y); ctx.lineTo(p101.x, p101.y); ctx.lineTo(p111.x, p111.y); ctx.lineTo(p011.x, p011.y); ctx.closePath();
+          ctx.moveTo(p000.x, p000.y); ctx.lineTo(p001.x, p001.y);
+          ctx.moveTo(p100.x, p100.y); ctx.lineTo(p101.x, p101.y);
+          ctx.moveTo(p110.x, p110.y); ctx.lineTo(p111.x, p111.y);
+          ctx.moveTo(p010.x, p010.y); ctx.lineTo(p011.x, p011.y);
+          ctx.stroke();
+        }
+      }
+
+      function clamp(val, min, max) {
+        return Math.max(min, Math.min(max, val));
+      }
+
+      function drawConstructionScene() {
+        const scrollTop = window.scrollY || document.documentElement.scrollTop;
+        const maxScroll = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+        const progress = clamp(scrollTop / maxScroll, 0, 1);
+
+        // HUD ko'rsatkichlarini yangilash
+        if (progressBar) progressBar.style.width = Math.max(5, Math.round(progress * 100)) + '%';
+        if (elevationLabel) elevationLabel.textContent = '+' + (progress * 24.6).toFixed(3) + ' m';
+        if (stageLabel) {
+          if (progress < 0.25) stageLabel.textContent = '01 / CHIZMA (CHERTOJ)';
+          else if (progress < 0.55) stageLabel.textContent = '02 / 3D KARKAS VA USTUNLAR';
+          else if (progress < 0.82) stageLabel.textContent = '03 / FASAD VA OYNALAR';
+          else stageLabel.textContent = '04 / TAYYOR 3D VIZUALIZATSIYA';
+        }
+
+        ctx.clearRect(0, 0, width, height);
+
+        const cx = width * 0.5;
+        const cy = height * 0.62;
+        const scale = Math.min(width, height) * 0.028;
+
+        // -----------------------------------------------------------------
+        // 1-BOSQICH: ARXITEKTURA CHIZMASI (CHERTOJ O'QLARI VA POYDEVOR)
+        // -----------------------------------------------------------------
+        const blueprintAlpha = clamp(0.18 + progress * 0.25, 0.18, 0.38);
+        ctx.strokeStyle = `rgba(25, 25, 25, ${blueprintAlpha})`;
+        ctx.lineWidth = 1;
+
+        // Koordinata o'qlari (A, B, C, D va 1, 2, 3, 4)
+        const gridRange = 12;
+        for (let i = -gridRange; i <= gridRange; i += 3) {
+          const startX = isoProject(i, -gridRange, 0, cx, cy, scale);
+          const endX = isoProject(i, gridRange, 0, cx, cy, scale);
+          ctx.beginPath();
+          ctx.setLineDash([4, 4]);
+          ctx.moveTo(startX.x, startX.y);
+          ctx.lineTo(endX.x, endX.y);
+          ctx.stroke();
+
+          const startY = isoProject(-gridRange, i, 0, cx, cy, scale);
+          const endY = isoProject(gridRange, i, 0, cx, cy, scale);
+          ctx.beginPath();
+          ctx.moveTo(startY.x, startY.y);
+          ctx.lineTo(endY.x, endY.y);
+          ctx.stroke();
+        }
+        ctx.setLineDash([]);
+
+        // O'lcham chizig'i va markalar (24 000 mm, 18 000 mm)
+        ctx.fillStyle = 'rgba(25, 25, 25, 0.45)';
+        ctx.font = '10px "JetBrains Mono", monospace';
+        const dimPt1 = isoProject(-6, 9, 0, cx, cy, scale);
+        const dimPt2 = isoProject(9, -6, 0, cx, cy, scale);
+        ctx.fillText('⟷ 24 000 mm (O‘Q A–D)', dimPt1.x - 40, dimPt1.y + 18);
+        ctx.fillText('⟷ 18 000 mm (O‘Q 1–4)', dimPt2.x + 10, dimPt2.y + 10);
+
+        // Poydevor konturi (0% dan boshlab ko'rinadi)
+        drawIsoBox(-6, -5, 0, 12, 10, 0.35, cx, cy, scale, 'rgba(25,25,25,0.45)', 'rgba(244,243,243,0.4)', 'rgba(210,210,210,0.4)', 'rgba(190,190,190,0.4)');
+
+        // -----------------------------------------------------------------
+        // 2-BOSQICH: 3D TEMIR-BETON KARKAS, USTUNLAR VA QAVAT PLITALARI
+        // -----------------------------------------------------------------
+        const structureProgress = clamp((progress - 0.08) / 0.45, 0, 1);
+        const totalFloors = 5;
+
+        if (structureProgress > 0) {
+          for (let f = 0; f < totalFloors; f++) {
+            const floorTrigger = f / totalFloors;
+            const floorLocal = clamp((structureProgress - floorTrigger) * totalFloors, 0, 1);
+            if (floorLocal <= 0) continue;
+
+            const zBase = 0.35 + f * 2.4;
+            const currentColHeight = 2.2 * floorLocal;
+
+            // 9 ta temir-beton ustunlar (kolonnalar)
+            const colCoords = [-5.5, 0, 5.1];
+            const rowCoords = [-4.5, 0, 4.1];
+            for (const cxPos of colCoords) {
+              for (const cyPos of rowCoords) {
+                drawIsoBox(
+                  cxPos, cyPos, zBase,
+                  0.4, 0.4, currentColHeight,
+                  cx, cy, scale,
+                  'rgba(25,25,25,0.5)',
+                  'rgba(230,230,230,0.55)',
+                  'rgba(200,200,200,0.55)',
+                  'rgba(170,170,170,0.55)'
+                );
+              }
+            }
+
+            // Qavat plitasi (ustun to'liq ko'tarilgach yopiladi)
+            if (floorLocal > 0.75) {
+              // Yuqori qavatlarda zamonaviy konsol (cantilever) arxitektura shakli
+              const isCantilever = f >= 2;
+              const slabW = isCantilever ? 13.2 : 12;
+              const slabD = isCantilever ? 10.8 : 10;
+              const slabX = isCantilever ? -6.6 : -6;
+              const slabY = isCantilever ? -5.4 : -5;
+
+              drawIsoBox(
+                slabX, slabY, zBase + 2.2,
+                slabW, slabD, 0.25,
+                cx, cy, scale,
+                'rgba(25,25,25,0.65)',
+                'rgba(244,243,243,0.75)',
+                'rgba(215,215,215,0.75)',
+                'rgba(195,195,195,0.75)'
+              );
+            }
+          }
+        }
+
+        // -----------------------------------------------------------------
+        // 3-BOSQICH: FASAD PANELLARI, VITRAJ OYNALAR VA KONSOL BALKONLAR
+        // -----------------------------------------------------------------
+        const facadeProgress = clamp((progress - 0.45) / 0.35, 0, 1);
+        if (facadeProgress > 0) {
+          for (let f = 0; f < totalFloors; f++) {
+            const fLocal = clamp((facadeProgress - (f / totalFloors) * 0.6) * 2.2, 0, 1);
+            if (fLocal <= 0) continue;
+
+            const zBase = 0.35 + f * 2.4;
+            const isCantilever = f >= 2;
+            const boxW = isCantilever ? 13.0 : 11.8;
+            const boxD = isCantilever ? 10.6 : 9.8;
+            const boxX = isCantilever ? -6.5 : -5.9;
+            const boxY = isCantilever ? -5.3 : -4.9;
+
+            // 4-bosqichda ichki issiq chiroqlar yonadi
+            const renderProgress = clamp((progress - 0.75) / 0.25, 0, 1);
+            const leftGlass = renderProgress > 0
+              ? `rgba(${Math.round(45 + renderProgress * 195)}, ${Math.round(75 + renderProgress * 115)}, ${Math.round(110 - renderProgress * 30)}, ${0.28 + renderProgress * 0.25})`
+              : `rgba(30, 58, 138, ${0.14 * fLocal})`;
+
+            const rightGlass = renderProgress > 0
+              ? `rgba(${Math.round(35 + renderProgress * 180)}, ${Math.round(60 + renderProgress * 100)}, ${Math.round(95 - renderProgress * 35)}, ${0.24 + renderProgress * 0.25})`
+              : `rgba(25, 25, 25, ${0.12 * fLocal})`;
+
+            drawIsoBox(
+              boxX, boxY, zBase,
+              boxW, boxD, 2.2 * fLocal,
+              cx, cy, scale,
+              'rgba(25,25,25,0.75)',
+              'rgba(245,245,244,0.85)',
+              leftGlass,
+              rightGlass,
+              1.2
+            );
+
+            // Vertikal arxitektura lamellari (louverlar)
+            const pBottom = isoProject(boxX + boxW * 0.5, boxY + boxD, zBase, cx, cy, scale);
+            const pTop = isoProject(boxX + boxW * 0.5, boxY + boxD, zBase + 2.2 * fLocal, cx, cy, scale);
+            ctx.beginPath();
+            ctx.strokeStyle = 'rgba(25,25,25,0.6)';
+            ctx.moveTo(pBottom.x, pBottom.y);
+            ctx.lineTo(pTop.x, pTop.y);
+            ctx.stroke();
+          }
+        }
+
+        // -----------------------------------------------------------------
+        // 4-BOSQICH: TOM PARAPETI, YORITISH VA ATROF-MUHIT (100% TAYYOR BINO)
+        // -----------------------------------------------------------------
+        const finishProgress = clamp((progress - 0.75) / 0.25, 0, 1);
+        if (finishProgress > 0) {
+          const roofZ = 0.35 + totalFloors * 2.4;
+          // Tomdagi pentxaus / texnik blok
+          drawIsoBox(
+            -3.5, -3, roofZ,
+            7, 6, 1.8 * finishProgress,
+            cx, cy, scale,
+            'rgba(25,25,25,0.85)',
+            'rgba(25,25,25,0.85)',
+            'rgba(245, 158, 11, 0.35)',
+            'rgba(217, 119, 6, 0.35)',
+            1.4
+          );
+        }
+      }
+
+      window.addEventListener('scroll', drawConstructionScene, { passive: true });
+      drawConstructionScene();
+    })();
+
+    /* ---------------------------------------------------------------------
+     * 3. SHAXSIY LOGOTIPNI YUKLASH VA SAQLASH
+     * --------------------------------------------------------------------- */
+    function handleLogoUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const dataUrl = e.target.result;
+        localStorage.setItem('ortiqov_custom_logo', dataUrl);
+        applySavedLogo();
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function applySavedLogo() {
+      const saved = localStorage.getItem('ortiqov_custom_logo');
+      const img = document.getElementById('custom-logo-img');
+      const svg = document.getElementById('default-logo-svg');
+      if (saved && img && svg) {
+        img.src = saved;
+        img.classList.remove('hidden');
+        svg.classList.add('hidden');
+      }
+    }
+    applySavedLogo();
+
+    /* ---------------------------------------------------------------------
+     * 4. PORTFOLIO ("QILINGAN ISHLAR") VA YANGI LOYIHA QO'SHISH TIZIMI
+     * --------------------------------------------------------------------- */
+    const defaultProjects = [
+      {
+        id: 1,
+        title: "Zamonaviy 2 qavatli Hi-Tech Villa",
+        category: "turar",
+        categoryLabel: "Turar-joy / 3D + Ishchi loyiha",
+        area: "380 m²",
+        image: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1000&q=80",
+        desc: "To‘liq me’moriy rejalashtirish chizmasi (AutoCAD), konstruktiv yechimlar hamda kunduzgi/tungi 3D eksteryer vizualizatsiyasi."
+      },
+      {
+        id: 2,
+        title: "Ko‘p tarmoqli Savdo va Biznes Markazi",
+        category: "noturar",
+        categoryLabel: "Noturar bino / Tijorat obyekti",
+        area: "1 450 m²",
+        image: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1000&q=80",
+        desc: "3 qavatli savdo majmuasining bosh rejasi, fasad vitraj chizmalari, ekspertiza hujjatlari va fotorealistik 3D ko‘rinishi."
+      },
+      {
+        id: 3,
+        title: "Premium Xonadon va Hovli 3D Vizualizatsiyasi",
+        category: "3d",
+        categoryLabel: "3D Vizualizatsiya / Eksteryer",
+        area: "520 m²",
+        image: "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1000&q=80",
+        desc: "Travertin, klinker va panoramali oynalar uyg‘unligida yaratilgan 3ds Max + Corona Physical Material 4K renderlari."
+      },
+      {
+        id: 4,
+        title: "2 qavatli Ma’muriy bino va Do‘kon Ishchi Loyihasi",
+        category: "loyiha",
+        categoryLabel: "Ishchi Chizma va Hujjatlar (AR/KJ)",
+        area: "640 m²",
+        image: "https://images.unsplash.com/photo-1503387762-592deb58ef4e?auto=format&fit=crop&w=1000&q=80",
+        desc: "Poydevor, kolonna va rigel tugunlari, qavatlar rejasi, fasad balandlik belgilari va qurilish smeta spetsifikatsiyasi."
+      }
+    ];
+
+    function getProjects() {
+      const saved = localStorage.getItem('ortiqov_portfolio_projects');
+      if (saved) {
+        try { return JSON.parse(saved); } catch (e) {}
+      }
+      return defaultProjects;
+    }
+
+    function renderPortfolio(filter = 'all') {
+      const grid = document.getElementById('portfolio-grid');
+      const projects = getProjects();
+      const filtered = filter === 'all' ? projects : projects.filter(p => p.category === filter);
+
+      grid.innerHTML = filtered.map((item, idx) => `
+        <div class="group bg-[#F4F3F3] border border-gray-200 overflow-hidden flex flex-col justify-between transition-all duration-200 hover:shadow-md">
+          <div>
+            <div class="relative h-60 overflow-hidden bg-gray-200">
+              <img src="${item.image}" alt="${item.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+              <div class="absolute top-3 left-3 bg-[#191919]/85 backdrop-blur-xs text-white text-[10px] font-mono uppercase px-2.5 py-1">
+                ${item.categoryLabel}
+              </div>
+              <div class="absolute bottom-3 right-3 bg-white/90 text-[#191919] text-xs font-mono font-semibold px-2.5 py-1">
+                ${item.area}
+              </div>
+            </div>
+            <div class="p-5 sm:p-6">
+              <div class="text-[10px] font-mono text-[#191919]/40 uppercase">LOYIHA № 0${idx + 1}</div>
+              <h3 class="mt-1 text-xl font-serif text-[#191919]">${item.title}</h3>
+              <p class="mt-2 text-sm text-[#191919]/70 leading-relaxed">${item.desc}</p>
+            </div>
+          </div>
+          <div class="px-5 sm:px-6 py-3.5 border-t border-gray-200/80 flex items-center justify-between text-xs font-mono">
+            <span class="text-[#191919]/60">CHIZMA + 3D + HUJJAT</span>
+            <a href="https://t.me/Ortiqov_M" target="_blank" class="font-semibold text-[#191919] group-hover:underline">Shu kabi buyurtma →</a>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function filterPortfolio(category) {
+      document.querySelectorAll('.portfolio-filter-btn').forEach(btn => {
+        if (btn.dataset.filter === category) {
+          btn.className = 'portfolio-filter-btn px-4 py-2 text-xs font-mono uppercase tracking-wider bg-[#191919] text-white transition-all';
+        } else {
+          btn.className = 'portfolio-filter-btn px-4 py-2 text-xs font-mono uppercase tracking-wider bg-[#F4F3F3] text-[#191919] hover:bg-[#eaeaea] transition-all';
+        }
+      });
+      renderPortfolio(category);
+    }
+
+    function toggleAddProjectModal(show) {
+      const modal = document.getElementById('add-project-modal');
+      if (show) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+      } else {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      }
+    }
+
+    function handleAddProject(e) {
+      e.preventDefault();
+      const title = document.getElementById('proj-title').value;
+      const category = document.getElementById('proj-category').value;
+      const area = document.getElementById('proj-area').value;
+      const imgUrl = document.getElementById('proj-img').value;
+      const fileInput = document.getElementById('proj-file');
+      const desc = document.getElementById('proj-desc').value;
+
+      const labels = {
+        turar: 'Turar-joy binosi',
+        noturar: 'Noturar bino',
+        '3d': '3D Vizualizatsiya',
+        loyiha: 'Chizma va Hujjatlar'
+      };
+
+      const saveProject = (finalImg) => {
+        const projects = getProjects();
+        projects.unshift({
+          id: Date.now(),
+          title,
+          category,
+          categoryLabel: labels[category] || 'Arxitektura loyihasi',
+          area,
+          image: finalImg || 'https://images.unsplash.com/photo-1600585154526-990dced4db0d?auto=format&fit=crop&w=1000&q=80',
+          desc
+        });
+        localStorage.setItem('ortiqov_portfolio_projects', JSON.stringify(projects));
+        renderPortfolio('all');
+        toggleAddProjectModal(false);
+        e.target.reset();
+      };
+
+      if (fileInput.files && fileInput.files[0]) {
+        const reader = new FileReader();
+        reader.onload = (ev) => saveProject(ev.target.result);
+        reader.readAsDataURL(fileInput.files[0]);
+      } else {
+        saveProject(imgUrl);
+      }
+    }
+
+    renderPortfolio('all');
+
+    /* ---------------------------------------------------------------------
+     * 5. LOYIHA KALKULYATORI (Telegramga tayyor xabar bilan o'tish)
+     * --------------------------------------------------------------------- */
+    function updateCalculator() {
+      const type = document.getElementById('calc-type').value;
+      const service = document.getElementById('calc-service').value;
+      const area = parseInt(document.getElementById('calc-area').value, 10);
+
+      document.getElementById('calc-area-display').textContent = area + ' m²';
+      document.getElementById('calc-summary-title').textContent = `${type.split('(')[0].trim()} (${area} m²)`;
+
+      let days = '4–7 ish kuni';
+      if (area > 400 && area <= 1000) days = '7–14 ish kuni';
+      else if (area > 1000) days = '14–22 ish kuni';
+      document.getElementById('calc-days').textContent = days;
+
+      const text = encodeURIComponent(
+        `Assalomu alaykum! Men saytingiz orqali loyiha bo'yicha murojaat qilyapman:\n` +
+        `• Bino turi: ${type}\n` +
+        `• Xizmat: ${service}\n` +
+        `• Maydoni: ${area} m²\n` +
+        `Shu loyiha bo'yicha maslahat va narx olsam bo'ladimi?`
+      );
+      document.getElementById('calc-telegram-link').href = `https://t.me/Ortiqov_M?text=${text}`;
+    }
+    updateCalculator();
+  </script>
+</body>
+</html>
